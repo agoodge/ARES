@@ -1,21 +1,14 @@
 """
-Autoencoder model and training function
+Autoencoder class, training method and ARES testing method
 """
-
-
 import torch
 from torch import nn
 import torch.optim as optim
-import time
 import numpy as np
+import sklearn.neighbors as neighbours
 
 import warnings
-warnings.filterwarnings("ignore", category=RuntimeWarning) 
-
-import variables as var
-
-np.random.seed(0)
-torch.manual_seed(0)
+warnings.filterwarnings("ignore", category=RuntimeWarning)
 
 class AE(nn.Module):
     def __init__(self,enc_hidden,dec_hidden):
@@ -56,18 +49,18 @@ class AE(nn.Module):
         
         return encoding, reconstruction
     
-def ae_train(ae,train_x, criterion, val = 0.9):
+def train_model(ae,train_x,val_x,args,device):
+
+    criterion = nn.MSELoss()
     
-    train, val = train_x[0:int(val*len(train_x))], train_x[int(val*len(train_x)):]
     #dataloaders
-    train_loader = torch.utils.data.DataLoader(train,var.batch_size,shuffle = True,drop_last = True)
+    train_loader = torch.utils.data.DataLoader(train_x,args.batch_size,drop_last = True)
     #optimiser
-    ae_optim = optim.Adam(ae.parameters(), lr = 0.001, weight_decay = 1e-6)
+    ae_optim = optim.Adam(ae.parameters(), lr = args.lr, weight_decay = args.wd)
     best_loss = 1000
     counter = 0
-
-    start = time.time()   
-    for epoch in range(var.epoch):
+ 
+    for epoch in range(args.n_epochs):
         
         # training
         ae.train()
@@ -75,6 +68,7 @@ def ae_train(ae,train_x, criterion, val = 0.9):
         running_train_loss = []
         # for each batch
         for data in train_loader:
+            data = data.to(device)
             #adjust from batch*28x28 to batchx784
             encoding, reconstruction = ae(data)
             # Computes loss
@@ -89,27 +83,55 @@ def ae_train(ae,train_x, criterion, val = 0.9):
         
         # validation
         ae.eval()
-        encoding, reconstruction = ae(val)
-        val_loss = criterion(val,reconstruction)
+        encoding, reconstruction = ae(val_x.to(device))
+        val_loss = criterion(val_x.to(device),reconstruction)
     
-        print("Epoch: %d   Train Loss: %.6f     Val Loss %.6f" 
-              %(epoch, np.mean(running_train_loss), val_loss.item()))
+        if args.verbose == 1:
+            print("Epoch: %d \t Train Loss: %.6f \t Val Loss %.6f" %(epoch, np.mean(running_train_loss), val_loss.item()))
 
         if val_loss < best_loss:
             counter = 0
             best_loss = val_loss
-        if val_loss > best_loss:
+        else:
             counter +=1
             if counter == 20:
-                print('Early Stopping...')
+                if args.verbose == 1:
+                    print('Early Stopping...')
                 break
-        
-    end = time.time()
-    print("Training time: %.2f minutes" %((end-start)/60))
-    
+            
     return ae, np.mean(running_train_loss), val_loss.item(), epoch
 
 
+def test_model(ae, train_x, test_x, args, device):     
+   
+    ae.eval()
+    with torch.no_grad():
+        train_enc, train_rec = ae(train_x.to(device))
+        test_enc, test_rec = ae(test_x.to(device))
 
+    train_x = train_x.numpy()
+    test_x = test_x.numpy()
+    train_enc = train_enc.cpu().detach().numpy()
+    train_rec = train_rec.cpu().detach().numpy()
+    test_enc = test_enc.cpu().detach().numpy()
+    test_rec = test_rec.cpu().detach().numpy()
+
+    train_error = ((train_rec - train_x)**2).mean(axis=1)
+    test_error = ((test_rec - test_x)**2).mean(axis=1)
+
+    nb = neighbours.LocalOutlierFactor(n_neighbors = args.n_neighbours,novelty=True)
+    nb.fit(train_enc)
+
+    nb_distance, nb_idx = nb.kneighbors(test_enc, n_neighbors = args.n_neighbours)
+
+    # LOCAL DENSITY SCORE
+    local_density_score = -nb.decision_function(test_enc)
+
+    # LOCAL RECONSTRUCTION SCORE
+    local_reconstruction_score = test_error - np.median(train_error[nb_idx],axis = 1)
     
+    # ARES SCORE
+    score = local_reconstruction_score + args.alpha*local_density_score
+        
+    return score
     
