@@ -1,7 +1,3 @@
-"""
-main file for experiments with pure training set for MI-F, MI-V and EOPT datasets
-"""
-
 import model
 import utils
 
@@ -99,15 +95,15 @@ if __name__ == "__main__":
 
     parser.add_argument("--batch_size", type = int, default = 250)
     parser.add_argument("--n_epochs", type = int, default = 350)
-    parser.add_argument("--dataset", type=str, default = 'fmnist')
+    parser.add_argument("--dataset", type=str, default = 'mnist')
     parser.add_argument("--n_neighbours", type = int, default = 10)
     parser.add_argument("--alpha", type = float, default = 0.5, help = "scaling factor")
     parser.add_argument("--lr", type = float, default = 0.001, help = "learning rate")
     parser.add_argument("--wd", type = float, default = 1e-6, help = "weight decay")
     parser.add_argument("--verbose", type = int, default = 1, help = "view training progress")
-    parser.add_argument("--normality", type = str, default = 'multi-class', help = "one-class vs multi-class normality setting")
+    parser.add_argument("--normality", type = str, default = 'one-class', help = "one-class vs multi-class normality setting")
     parser.add_argument("--load_model", type = int, default = 1, help = "load a previously trained model")
-    parser.add_argument("--target_class", type = int, default = i, help = "anomalous class if --normality == one-class, normal class if --normality == multi-class")
+    parser.add_argument("--target_class", type = int, default = 0, help = "anomalous class if --normality == one-class, normal class if --normality == multi-class")
     args = parser.parse_args()
 
     main(args)

@@ -1,18 +1,8 @@
-"""
-useful functions related to datasets, and scoring 
-"""
-
-
 import torch
 import torchvision
 import numpy as np
 import pandas as pd
-from scipy.spatial.distance import mahalanobis
 
-np.random.seed(0)
-torch.manual_seed(0)
-        
-# DATASET FUNCTIONS
 def get_data(dataset):
 
     if dataset == "mnist":
